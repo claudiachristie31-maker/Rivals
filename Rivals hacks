@@ -16,18 +16,35 @@ gui.Name = "NickoyHeadAim"
 gui.ResetOnSpawn = false
 gui.Parent = playerGui
 
+-- Main panel
 local panel = Instance.new("Frame")
 panel.Size = UDim2.fromOffset(320, 245)
 panel.Position = UDim2.new(0.5, -160, 0.5, -122)
 panel.BackgroundColor3 = Color3.fromRGB(25, 22, 38)
 panel.BorderSizePixel = 0
 panel.Active = true
+panel.Visible = false
 panel.Parent = gui
 
 Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
 
+-- Open button
+local openButton = Instance.new("TextButton")
+openButton.Name = "OpenButton"
+openButton.Size = UDim2.fromOffset(100, 40)
+openButton.Position = UDim2.new(0, 15, 0.5, -20)
+openButton.BackgroundColor3 = Color3.fromRGB(75, 55, 105)
+openButton.Text = "OPEN MENU"
+openButton.TextColor3 = Color3.new(1, 1, 1)
+openButton.TextScaled = true
+openButton.Font = Enum.Font.GothamBold
+openButton.Parent = gui
+
+Instance.new("UICorner", openButton).CornerRadius = UDim.new(0, 8)
+
+-- Title
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -20, 0, 42)
+title.Size = UDim2.new(1, -55, 0, 42)
 title.Position = UDim2.fromOffset(10, 5)
 title.BackgroundTransparency = 1
 title.Text = "NICKOY | HEAD AIM"
@@ -36,6 +53,20 @@ title.TextScaled = true
 title.Font = Enum.Font.GothamBold
 title.Parent = panel
 
+-- Close button
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.fromOffset(35, 35)
+closeButton.Position = UDim2.new(1, -42, 0, 7)
+closeButton.BackgroundColor3 = Color3.fromRGB(170, 45, 55)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.TextScaled = true
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = panel
+
+Instance.new("UICorner", closeButton).CornerRadius = UDim.new(0, 8)
+
+-- Head aim toggle
 local toggle = Instance.new("TextButton")
 toggle.Size = UDim2.new(1, -24, 0, 44)
 toggle.Position = UDim2.fromOffset(12, 55)
@@ -48,6 +79,7 @@ toggle.Parent = panel
 
 Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 8)
 
+-- Target status
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -24, 0, 32)
 status.Position = UDim2.fromOffset(12, 105)
@@ -58,6 +90,7 @@ status.TextScaled = true
 status.Font = Enum.Font.Gotham
 status.Parent = panel
 
+-- Smoothness label
 local sliderLabel = Instance.new("TextLabel")
 sliderLabel.Size = UDim2.new(1, -24, 0, 28)
 sliderLabel.Position = UDim2.fromOffset(12, 145)
@@ -67,8 +100,9 @@ sliderLabel.TextColor3 = Color3.new(1, 1, 1)
 sliderLabel.TextScaled = true
 sliderLabel.Parent = panel
 
+-- Smoothness control
 local slider = Instance.new("TextButton")
-slider.Size = UDim2.new(1, -30, 0, 18)
+slider.Size = UDim2.new(1, -30, 0, 25)
 slider.Position = UDim2.fromOffset(15, 188)
 slider.BackgroundColor3 = Color3.fromRGB(140, 90, 190)
 slider.Text = "Tap to adjust smoothness"
@@ -78,12 +112,27 @@ slider.Parent = panel
 
 Instance.new("UICorner", slider).CornerRadius = UDim.new(0, 8)
 
+-- Open and close
+openButton.Activated:Connect(function()
+    panel.Visible = true
+    openButton.Visible = false
+end)
+
+closeButton.Activated:Connect(function()
+    panel.Visible = false
+    openButton.Visible = true
+end)
+
+-- Find nearest living player
 local function getNearestPlayer()
     local character = player.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
-    if not root then return nil end
+    if not root then
+        return nil
+    end
 
-    local nearest, nearestDistance = nil, 250
+    local nearest = nil
+    local nearestDistance = 250
 
     for _, other in ipairs(Players:GetPlayers()) do
         if other ~= player then
@@ -105,8 +154,10 @@ local function getNearestPlayer()
     return nearest
 end
 
+-- Enable / disable
 toggle.Activated:Connect(function()
     enabled = not enabled
+
     toggle.Text = enabled and "HEAD AIM: ON" or "HEAD AIM: OFF"
     toggle.BackgroundColor3 = enabled
         and Color3.fromRGB(120, 65, 180)
@@ -118,9 +169,10 @@ toggle.Activated:Connect(function()
     end
 end)
 
--- Tap slider to cycle smoothness
+-- Adjust smoothness
 slider.Activated:Connect(function()
     smoothness = smoothness + 0.15
+
     if smoothness > 0.8 then
         smoothness = 0.05
     end
@@ -129,28 +181,35 @@ slider.Activated:Connect(function()
         .. math.floor(smoothness * 100) .. "%"
 end)
 
+-- Camera targeting for your own Roblox Studio game
 RunService:BindToRenderStep(
     "NickoyHeadAim",
     Enum.RenderPriority.Camera.Value + 1,
     function()
-        if not enabled then return end
+        if not enabled then
+            return
+        end
 
         local camera = workspace.CurrentCamera
-        if not camera then return end
+        if not camera then
+            return
+        end
 
-        if not targetPlayer
-            or not targetPlayer.Character
-            or not targetPlayer.Character:FindFirstChild("Head")
-            or not targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-            or targetPlayer.Character:FindFirstChildOfClass("Humanoid").Health <= 0 then
+        local character = targetPlayer and targetPlayer.Character
+        local humanoid = character
+            and character:FindFirstChildOfClass("Humanoid")
+        local head = character and character:FindFirstChild("Head")
+
+        if not head or not humanoid or humanoid.Health <= 0 then
             targetPlayer = getNearestPlayer()
         end
 
-        local head = targetPlayer
-            and targetPlayer.Character
-            and targetPlayer.Character:FindFirstChild("Head")
+        character = targetPlayer and targetPlayer.Character
+        head = character and character:FindFirstChild("Head")
+        humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
-        if not head then
+        if not head or not humanoid or humanoid.Health <= 0 then
+            targetPlayer = nil
             status.Text = "Target: None"
             return
         end
@@ -169,6 +228,7 @@ RunService:BindToRenderStep(
     end
 )
 
+-- Cleanup
 script.Destroying:Connect(function()
     RunService:UnbindFromRenderStep("NickoyHeadAim")
     gui:Destroy()
