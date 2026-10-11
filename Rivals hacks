@@ -1,6 +1,8 @@
+
 -- [made by Nickoy]
--- Combined Menu + HEAD TARGET Selection
+-- Combined Menu + Target Selection
 -- LocalScript: StarterPlayer > StarterPlayerScripts
+-- For your own Roblox Studio experience
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -10,6 +12,21 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 local TARGET_RANGE = 250
 local targetHead = nil
+
+local features = {
+    "ESP",
+    "CHAMS",
+    "NAMES",
+    "HEAD TARGET",
+    "AUTO SHOOT",
+}
+
+local states = {}
+local buttons = {}
+
+for _, feature in ipairs(features) do
+    states[feature] = false
+end
 
 -- Remove duplicate GUI
 local oldGui = playerGui:FindFirstChild("NickoyCombinedMenu")
@@ -23,7 +40,6 @@ gui.Name = "NickoyCombinedMenu"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.DisplayOrder = 100
-gui.Enabled = true
 gui.Parent = playerGui
 
 -- Open button
@@ -38,14 +54,13 @@ openButton.BorderSizePixel = 0
 openButton.Visible = false
 openButton.Parent = gui
 
--- Main panel (visible immediately)
+-- Main panel
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
 frame.Size = UDim2.fromOffset(250, 290)
 frame.Position = UDim2.new(0, 15, 0.5, -145)
 frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 frame.BorderSizePixel = 0
-frame.Visible = true
 frame.Parent = gui
 
 -- Title bar
@@ -133,22 +148,7 @@ UIS.InputEnded:Connect(function(input)
     end
 end)
 
--- Feature states
-local features = {
-    "ESP",
-    "CHAMS",
-    "NAMES",
-    "HEAD TARGET",
-    "AUTO SHOOT",
-}
-
-local states = {}
-local buttons = {}
-
-for _, feature in ipairs(features) do
-    states[feature] = false
-end
-
+-- Button helpers
 local function updateButton(feature, customText)
     local button = buttons[feature]
     if not button then
@@ -163,7 +163,7 @@ local function updateButton(feature, customText)
         or Color3.fromRGB(55, 55, 55)
 end
 
--- Nearest living player's head, within range
+-- Find nearest living player's head
 local function getNearestOpponentHead()
     local character = player.Character
     local root = character
@@ -173,7 +173,7 @@ local function getNearestOpponentHead()
         return nil
     end
 
-    local nearestHead
+    local nearestHead = nil
     local nearestDistance = TARGET_RANGE
 
     for _, opponent in ipairs(Players:GetPlayers()) do
@@ -202,7 +202,7 @@ local function getNearestOpponentHead()
     return nearestHead
 end
 
--- Create feature buttons
+-- Feature buttons
 for i, feature in ipairs(features) do
     local button = Instance.new("TextButton")
     button.Name = feature:gsub(" ", "") .. "Button"
@@ -229,6 +229,7 @@ for i, feature in ipairs(features) do
                         "TARGET: " .. targetHead.Parent.Name
                     )
                 else
+                    states[feature] = false
                     updateButton(feature, "HEAD TARGET: NO PLAYER")
                 end
             else
@@ -241,7 +242,7 @@ for i, feature in ipairs(features) do
     end)
 end
 
--- Clear selected target if it is removed
+-- Clear invalid targets and reacquire while enabled
 local function clearTargetIfInvalid()
     if targetHead and not targetHead:IsDescendantOf(workspace) then
         targetHead = nil
@@ -256,6 +257,7 @@ local function clearTargetIfInvalid()
                 "TARGET: " .. targetHead.Parent.Name
             )
         else
+            states["HEAD TARGET"] = false
             updateButton("HEAD TARGET", "HEAD TARGET: NO PLAYER")
         end
     end
@@ -323,12 +325,32 @@ local function refreshVisuals()
     end
 end
 
--- Main refresh loop
+-- Refresh loop
 task.spawn(function()
     while gui.Parent do
         task.wait(0.5)
         clearTargetIfInvalid()
         refreshVisuals()
+    end
+end)
+
+-- Cleanup
+script.Destroying:Connect(function()
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        local character = targetPlayer.Character
+
+        if character then
+            local highlight = character:FindFirstChild("NickoyHighlight")
+            if highlight then
+                highlight:Destroy()
+            end
+
+            for _, descendant in ipairs(character:GetDescendants()) do
+                if descendant.Name == "NickoyNameTag" then
+                    descendant:Destroy()
+                end
+            end
+        end
     end
 end)
 
