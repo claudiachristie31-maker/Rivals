@@ -1,262 +1,232 @@
 
--- NICKOY ESP + CHAMS + NAMES
 -- [made by Nickoy]
--- For your own Roblox Studio game
+-- Combined Player Menu
+-- LocalScript: StarterPlayer > StarterPlayerScripts
 
 local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
-local playerGui = localPlayer:WaitForChild("PlayerGui")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
 
-local espEnabled = false
-local chamsEnabled = false
-local namesEnabled = true
-local tracked = {}
-
--- GUI
 local gui = Instance.new("ScreenGui")
-gui.Name = "NickoyESPMenu"
+gui.Name = "NickoyCombinedMenu"
 gui.ResetOnSpawn = false
 gui.Parent = playerGui
 
-local openButton = Instance.new("TextButton")
-openButton.Size = UDim2.fromOffset(110, 40)
-openButton.Position = UDim2.new(0, 15, 0.5, -20)
-openButton.BackgroundColor3 = Color3.fromRGB(100, 60, 160)
-openButton.Text = "OPEN MENU"
-openButton.TextColor3 = Color3.new(1, 1, 1)
-openButton.TextScaled = true
-openButton.Font = Enum.Font.GothamBold
-openButton.Parent = gui
-Instance.new("UICorner", openButton).CornerRadius = UDim.new(0, 8)
+local open = Instance.new("TextButton")
+open.Size = UDim2.fromOffset(130, 35)
+open.Position = UDim2.new(0, 15, 0.5, -20)
+open.Text = "OPEN MENU"
+open.Parent = gui
 
-local panel = Instance.new("Frame")
-panel.Size = UDim2.fromOffset(280, 250)
-panel.Position = UDim2.new(0.5, -140, 0.5, -125)
-panel.BackgroundColor3 = Color3.fromRGB(25, 22, 38)
-panel.BorderSizePixel = 0
-panel.Visible = false
-panel.Parent = gui
-Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.fromOffset(240, 290)
+frame.Position = UDim2.new(0, 15, 0.5, 20)
+frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+frame.Visible = false
+frame.Parent = gui
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -45, 0, 42)
-title.Position = UDim2.fromOffset(10, 4)
+title.Size = UDim2.new(1, -40, 0, 30)
+title.Text = "[made by Nickoy]"
+title.TextColor3 = Color3.new(1, 1, 1)
 title.BackgroundTransparency = 1
-title.Text = "NICKOY | ESP"
-title.TextColor3 = Color3.fromRGB(210, 160, 255)
-title.TextScaled = true
-title.Font = Enum.Font.GothamBold
-title.Parent = panel
+title.Parent = frame
 
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.fromOffset(32, 32)
-closeButton.Position = UDim2.new(1, -38, 0, 7)
-closeButton.BackgroundColor3 = Color3.fromRGB(170, 45, 55)
-closeButton.Text = "X"
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.TextScaled = true
-closeButton.Parent = panel
-Instance.new("UICorner", closeButton).CornerRadius = UDim.new(0, 8)
+local close = Instance.new("TextButton")
+close.Size = UDim2.fromOffset(35, 30)
+close.Position = UDim2.new(1, -35, 0, 0)
+close.Text = "X"
+close.Parent = frame
 
--- Toggle buttons
-local function makeToggle(text, y, initialState, callback)
+open.MouseButton1Click:Connect(function()
+    frame.Visible = true
+    open.Visible = false
+end)
+
+close.MouseButton1Click:Connect(function()
+    frame.Visible = false
+    open.Visible = true
+end)
+
+local states = {
+    ESP = false,
+    CHAMS = false,
+    NAMES = false,
+    ["HEAD TARGET"] = false,
+    ["AUTO SHOOT"] = false,
+}
+
+local buttons = {}
+local order = {"ESP", "CHAMS", "NAMES", "HEAD TARGET", "AUTO SHOOT"}
+
+for i, feature in ipairs(order) do
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, -24, 0, 45)
-    button.Position = UDim2.fromOffset(12, y)
-    button.BackgroundColor3 = Color3.fromRGB(65, 55, 85)
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.TextScaled = true
-    button.Font = Enum.Font.GothamBold
-    button.Parent = panel
-    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+    button.Name = feature:gsub(" ", "") .. "Button"
+    button.Size = UDim2.new(1, -20, 0, 38)
+    button.Position = UDim2.new(0, 10, 0, 35 + (i - 1) * 45)
+    button.Text = feature .. ": OFF"
+    button.Parent = frame
+    buttons[feature] = button
 
-    local state = initialState
-
-    local function refresh()
-        button.Text = text .. ": " .. (state and "ON" or "OFF")
-        button.BackgroundColor3 = state
-            and Color3.fromRGB(115, 65, 165)
-            or Color3.fromRGB(65, 55, 85)
-    end
-
-    button.Activated:Connect(function()
-        state = not state
-        refresh()
-        callback(state)
+    button.MouseButton1Click:Connect(function()
+        states[feature] = not states[feature]
+        button.Text = feature .. ": "
+            .. (states[feature] and "ON" or "OFF")
     end)
-
-    refresh()
-    return button
 end
 
--- Player visuals
-local function removeVisuals(other)
-    local data = tracked[other]
-    if not data then return end
+-- NPC-only nearest target selection for your own game.
+local function getNearestNPC(maxDistance)
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
 
-    if data.highlight then
-        data.highlight:Destroy()
+    local nearest, nearestDistance = nil, maxDistance or 100
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model")
+            and not Players:GetPlayerFromCharacter(obj) then
+
+            local humanoid = obj:FindFirstChildOfClass("Humanoid")
+            local npcRoot = obj:FindFirstChild("HumanoidRootPart")
+
+            if humanoid and humanoid.Health > 0 and npcRoot then
+                local distance = (npcRoot.Position - root.Position).Magnitude
+
+                if distance < nearestDistance then
+                    nearest = obj
+                    nearestDistance = distance
+                end
+            end
+        end
     end
 
-    if data.billboard then
-        data.billboard:Destroy()
-    end
-
-    tracked[other] = nil
+    return nearest
 end
 
-local function updatePlayer(other)
-    if other == localPlayer then return end
+-- Auto-shoot toggle: activates your equipped Tool near an NPC.
+local GUN_NAME = "Gun"
+local FIRE_INTERVAL = 0.2
+local elapsed = 0
 
-    local character = other.Character
-    if not character then
-        removeVisuals(other)
+game:GetService("RunService").Heartbeat:Connect(function(dt)
+    if not states["AUTO SHOOT"] then return end
+
+    elapsed += dt
+    if elapsed < FIRE_INTERVAL then return end
+    elapsed = 0
+
+    local character = player.Character
+    if not character then return end
+
+    local gun = character:FindFirstChild(GUN_NAME)
+    if not gun or not gun:IsA("Tool") then return end
+
+    local target = getNearestNPC(100)
+    if target then
+        gun:Activate()
+    end
+end)
+
+-- Nearest player head selection.
+local selectedHead
+
+buttons["HEAD TARGET"].MouseButton1Click:Connect(function()
+    if not states["HEAD TARGET"] then
+        selectedHead = nil
         return
     end
 
-    if not tracked[other] or tracked[other].character ~= character then
-        removeVisuals(other)
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "NickoyHighlight"
-        highlight.Adornee = character
-        highlight.FillColor = Color3.fromRGB(170, 80, 255)
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.FillTransparency = 0.5
-        highlight.OutlineTransparency = 0
-        highlight.DepthMode = Enum.HighlightDepthMode.Occluded
-        highlight.Enabled = false
-        highlight.Parent = character
+    local nearestDistance = 250
+    selectedHead = nil
 
-        local head = character:FindFirstChild("Head")
-        local billboard
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        if targetPlayer ~= player then
+            local targetCharacter = targetPlayer.Character
+            local head = targetCharacter and targetCharacter:FindFirstChild("Head")
+            local humanoid = targetCharacter
+                and targetCharacter:FindFirstChildOfClass("Humanoid")
 
-        if head then
-            billboard = Instance.new("BillboardGui")
-            billboard.Name = "NickoyNameTag"
-            billboard.Adornee = head
-            billboard.Size = UDim2.fromOffset(180, 35)
-            billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-            billboard.AlwaysOnTop = false
-            billboard.Enabled = false
-            billboard.Parent = playerGui
-
-            local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.fromScale(1, 1)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.TextColor3 = Color3.fromRGB(220, 180, 255)
-            nameLabel.TextStrokeTransparency = 0.25
-            nameLabel.TextScaled = true
-            nameLabel.Font = Enum.Font.GothamBold
-            nameLabel.Text = other.DisplayName
-            nameLabel.Parent = billboard
-        end
-
-        tracked[other] = {
-            character = character,
-            highlight = highlight,
-            billboard = billboard
-        }
-    end
-
-    local data = tracked[other]
-    if data then
-        data.highlight.Enabled = chamsEnabled
-        if data.billboard then
-            data.billboard.Enabled = namesEnabled
+            if head and humanoid and humanoid.Health > 0 then
+                local distance = (head.Position - root.Position).Magnitude
+                if distance < nearestDistance then
+                    nearestDistance = distance
+                    selectedHead = head
+                end
+            end
         end
     end
-end
 
--- Open and close menu
-openButton.Activated:Connect(function()
-    panel.Visible = true
-    openButton.Visible = false
+    buttons["HEAD TARGET"].Text = selectedHead
+        and ("HEAD TARGET: " .. selectedHead.Parent.Name)
+        or "HEAD TARGET: NONE"
 end)
 
-closeButton.Activated:Connect(function()
-    panel.Visible = false
-    openButton.Visible = true
-end)
+-- Apply visual effects to other player characters in your own game.
+local function refreshVisuals()
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        if targetPlayer ~= player then
+            local character = targetPlayer.Character
 
--- Feature controls
-makeToggle("ESP", 55, espEnabled, function(value)
-    espEnabled = value
-    for _, other in ipairs(Players:GetPlayers()) do
-        updatePlayer(other)
-        local data = tracked[other]
-        if data and data.highlight then
-            data.highlight.Enabled = espEnabled or chamsEnabled
-        end
-    end
-end)
+            if character then
+                local highlight = character:FindFirstChild("NickoyHighlight")
 
-makeToggle("CHAMS", 108, chamsEnabled, function(value)
-    chamsEnabled = value
-    for _, other in ipairs(Players:GetPlayers()) do
-        updatePlayer(other)
-        local data = tracked[other]
-        if data and data.highlight then
-            data.highlight.Enabled = espEnabled or chamsEnabled
-            -- Occluded mode keeps highlights hidden behind walls.
-        end
-    end
-end)
+                if states.ESP or states.CHAMS then
+                    if not highlight then
+                        highlight = Instance.new("Highlight")
+                        highlight.Name = "NickoyHighlight"
+                        highlight.Adornee = character
+                        highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+                        highlight.Parent = character
+                    end
 
-makeToggle("NAMES", 161, namesEnabled, function(value)
-    namesEnabled = value
-    for _, other in ipairs(Players:GetPlayers()) do
-        updatePlayer(other)
-        local data = tracked[other]
-        if data and data.billboard then
-            data.billboard.Enabled = namesEnabled
-        end
-    end
-end)
+                    highlight.Enabled = true
+                    highlight.FillColor = states.CHAMS
+                        and Color3.fromRGB(255, 80, 80)
+                        or Color3.fromRGB(80, 170, 255)
+                elseif highlight then
+                    highlight:Destroy()
+                end
 
--- Track players and respawns
-local function trackPlayer(other)
-    if other == localPlayer then return end
+                local head = character:FindFirstChild("Head")
+                if head then
+                    local tag = head:FindFirstChild("NickoyNameTag")
 
-    other.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        updatePlayer(other)
-    end)
+                    if states.NAMES then
+                        if not tag then
+                            tag = Instance.new("BillboardGui")
+                            tag.Name = "NickoyNameTag"
+                            tag.Size = UDim2.fromOffset(160, 30)
+                            tag.StudsOffset = Vector3.new(0, 2, 0)
+                            tag.AlwaysOnTop = true
+                            tag.Adornee = head
+                            tag.Parent = head
 
-    if other.Character then
-        updatePlayer(other)
-    end
-end
+                            local label = Instance.new("TextLabel")
+                            label.Name = "NameLabel"
+                            label.Size = UDim2.fromScale(1, 1)
+                            label.BackgroundTransparency = 1
+                            label.TextColor3 = Color3.new(1, 1, 1)
+                            label.TextScaled = true
+                            label.Parent = tag
+                        end
 
-for _, other in ipairs(Players:GetPlayers()) do
-    trackPlayer(other)
-end
-
-Players.PlayerAdded:Connect(trackPlayer)
-Players.PlayerRemoving:Connect(removeVisuals)
-
--- Keep visuals synchronized
-task.spawn(function()
-    while gui.Parent do
-        for _, other in ipairs(Players:GetPlayers()) do
-            if other ~= localPlayer then
-                updatePlayer(other)
-                local data = tracked[other]
-                if data then
-                    data.highlight.Enabled = espEnabled or chamsEnabled
-                    if data.billboard then
-                        data.billboard.Enabled = namesEnabled
+                        tag.NameLabel.Text = targetPlayer.Name
+                    elseif tag then
+                        tag:Destroy()
                     end
                 end
             end
         end
-        task.wait(0.5)
     end
-end)
+end
 
-script.Destroying:Connect(function()
-    for other in pairs(tracked) do
-        removeVisuals(other)
-    end
-    gui:Destroy()
-end)
+while gui.Parent do
+    task.wait(0.5)
+    refreshVisuals()
+end
