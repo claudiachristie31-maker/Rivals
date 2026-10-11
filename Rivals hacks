@@ -1,14 +1,21 @@
-
 -- [made by Nickoy]
--- Combined Menu + Updated Draggable Title Bar
+-- Combined Menu + HEAD TARGET Selection
 -- LocalScript: StarterPlayer > StarterPlayerScripts
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+local TARGET_RANGE = 250
+local targetHead = nil
+
+-- Remove an older copy if the script runs again
+local oldGui = playerGui:FindFirstChild("NickoyCombinedMenu")
+if oldGui then
+    oldGui:Destroy()
+end
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "NickoyCombinedMenu"
@@ -23,9 +30,10 @@ openButton.Parent = gui
 
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
-frame.Size = UDim2.fromOffset(240, 290)
+frame.Size = UDim2.fromOffset(240, 275)
 frame.Position = UDim2.new(0, 15, 0.5, 20)
 frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+frame.BorderSizePixel = 0
 frame.Visible = false
 frame.Parent = gui
 
@@ -35,12 +43,16 @@ title.Size = UDim2.new(1, -35, 0, 30)
 title.Text = "[made by Nickoy] — DRAG HERE"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+title.BorderSizePixel = 0
 title.Parent = frame
 
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.fromOffset(35, 30)
 closeButton.Position = UDim2.new(1, -35, 0, 0)
 closeButton.Text = "X"
+closeButton.BackgroundColor3 = Color3.fromRGB(150, 45, 45)
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.BorderSizePixel = 0
 closeButton.Parent = frame
 
 openButton.MouseButton1Click:Connect(function()
@@ -53,7 +65,7 @@ closeButton.MouseButton1Click:Connect(function()
     openButton.Visible = true
 end)
 
--- [made by Nickoy] - Draggable Menu
+-- Draggable title bar: mouse and touch
 local dragging = false
 local dragStart
 local startPosition
@@ -76,7 +88,9 @@ title.InputBegan:Connect(function(input)
 end)
 
 UIS.InputChanged:Connect(function(input)
-    if not dragging then return end
+    if not dragging then
+        return
+    end
 
     local isMouse =
         input.UserInputType == Enum.UserInputType.MouseMovement
@@ -100,14 +114,14 @@ end)
 UIS.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or (input.UserInputType == Enum.UserInputType.Touch
-            and input == activeTouch) then
+        and input == activeTouch) then
 
         dragging = false
         activeTouch = nil
     end
 end)
 
--- Feature buttons
+-- Feature states
 local states = {
     ESP = false,
     CHAMS = false,
@@ -117,6 +131,7 @@ local states = {
 }
 
 local buttons = {}
+
 local features = {
     "ESP",
     "CHAMS",
@@ -125,118 +140,113 @@ local features = {
     "AUTO SHOOT",
 }
 
+local function updateButton(feature, customText)
+    local button = buttons[feature]
+    if not button then
+        return
+    end
+
+    button.Text = customText or (
+        feature .. ": " .. (states[feature] and "ON" or "OFF")
+    )
+
+    button.BackgroundColor3 = states[feature]
+        and Color3.fromRGB(45, 115, 75)
+        or Color3.fromRGB(55, 55, 55)
+end
+
+-- Find the nearest eligible living player's head
+local function getNearestOpponentHead()
+    local character = player.Character
+    local root = character
+        and character:FindFirstChild("HumanoidRootPart")
+
+    if not root then
+        return nil
+    end
+
+    local nearestHead = nil
+    local nearestDistance = TARGET_RANGE
+
+    for _, opponent in ipairs(Players:GetPlayers()) do
+        if opponent ~= player then
+            local opponentCharacter = opponent.Character
+            local humanoid = opponentCharacter
+                and opponentCharacter:FindFirstChildOfClass("Humanoid")
+            local head = opponentCharacter
+                and opponentCharacter:FindFirstChild("Head")
+            local opponentRoot = opponentCharacter
+                and opponentCharacter:FindFirstChild("HumanoidRootPart")
+
+            -- Add your own game's team/match eligibility checks here.
+            if humanoid and humanoid.Health > 0
+                and head and opponentRoot then
+
+                local distance =
+                    (opponentRoot.Position - root.Position).Magnitude
+
+                if distance < nearestDistance then
+                    nearestDistance = distance
+                    nearestHead = head
+                end
+            end
+        end
+    end
+
+    return nearestHead
+end
+
+-- Create feature buttons
 for i, feature in ipairs(features) do
     local button = Instance.new("TextButton")
     button.Name = feature:gsub(" ", "") .. "Button"
     button.Size = UDim2.new(1, -20, 0, 38)
     button.Position = UDim2.new(0, 10, 0, 35 + (i - 1) * 45)
+    button.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.BorderSizePixel = 0
     button.Text = feature .. ": OFF"
     button.Parent = frame
+
     buttons[feature] = button
 
     button.MouseButton1Click:Connect(function()
         states[feature] = not states[feature]
-        button.Text = feature .. ": "
-            .. (states[feature] and "ON" or "OFF")
+
+        if feature == "HEAD TARGET" then
+            if states[feature] then
+                targetHead = getNearestOpponentHead()
+
+                if targetHead then
+                    updateButton(
+                        feature,
+                        "TARGET: " .. targetHead.Parent.Name
+                    )
+                else
+                    updateButton(feature, "HEAD TARGET: NO PLAYER")
+                end
+            else
+                targetHead = nil
+                updateButton(feature, "HEAD TARGET: OFF")
+            end
+        else
+            updateButton(feature)
+        end
     end)
 end
 
--- Nearest NPC system for your own Roblox game
-local GUN_NAME = "Gun"
-local RANGE = 100
-local FIRE_INTERVAL = 0.2
-local elapsed = 0
-
-local function getNearestNPC(maxDistance)
-    local character = player.Character
-    local root = character
-        and character:FindFirstChild("HumanoidRootPart")
-
-    if not root then return nil end
-
-    local nearest
-    local nearestDistance = maxDistance
-
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model")
-            and not Players:GetPlayerFromCharacter(obj) then
-
-            local humanoid = obj:FindFirstChildOfClass("Humanoid")
-            local npcRoot = obj:FindFirstChild("HumanoidRootPart")
-
-            if humanoid and humanoid.Health > 0 and npcRoot then
-                local distance =
-                    (npcRoot.Position - root.Position).Magnitude
-
-                if distance < nearestDistance then
-                    nearest = obj
-                    nearestDistance = distance
-                end
-            end
-        end
-    end
-
-    return nearest
-end
-
-RunService.Heartbeat:Connect(function(dt)
-    if not states["AUTO SHOOT"] then return end
-
-    elapsed += dt
-    if elapsed < FIRE_INTERVAL then return end
-    elapsed = 0
-
-    local character = player.Character
-    local gun = character and character:FindFirstChild(GUN_NAME)
-
-    if gun and gun:IsA("Tool") and getNearestNPC(RANGE) then
-        gun:Activate()
+-- Clear the selected head if it disappears or the player leaves
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+    if targetHead and targetHead:IsDescendantOf(
+        leavingPlayer.Character or Instance.new("Folder")
+    ) then
+        targetHead = nil
+        states["HEAD TARGET"] = false
+        updateButton("HEAD TARGET", "HEAD TARGET: OFF")
     end
 end)
 
--- Nearest head selection
-local selectedHead
-
-buttons["HEAD TARGET"].MouseButton1Click:Connect(function()
-    if not states["HEAD TARGET"] then
-        selectedHead = nil
-        return
-    end
-
-    local character = player.Character
-    local root = character
-        and character:FindFirstChild("HumanoidRootPart")
-
-    if not root then return end
-
-    local nearestDistance = 250
-    selectedHead = nil
-
-    for _, targetPlayer in ipairs(Players:GetPlayers()) do
-        if targetPlayer ~= player then
-            local targetCharacter = targetPlayer.Character
-            local head = targetCharacter
-                and targetCharacter:FindFirstChild("Head")
-            local humanoid = targetCharacter
-                and targetCharacter:FindFirstChildOfClass("Humanoid")
-
-            if head and humanoid and humanoid.Health > 0 then
-                local distance = (head.Position - root.Position).Magnitude
-
-                if distance < nearestDistance then
-                    nearestDistance = distance
-                    selectedHead = head
-                end
-            end
-        end
-    end
-
-    buttons["HEAD TARGET"].Text = selectedHead
-        and ("TARGET: " .. selectedHead.Parent.Name)
-        or "HEAD TARGET: NONE"
-end)
-
--- Visual effects for your own Roblox game
+-- ESP / CHAMS / NAMES visual updates
 local function refreshVisuals()
     for _, targetPlayer in ipairs(Players:GetPlayers()) do
         if targetPlayer ~= player then
@@ -298,7 +308,28 @@ local function refreshVisuals()
     end
 end
 
-while gui.Parent do
-    task.wait(0.5)
-    refreshVisuals()
-end
+task.spawn(function()
+    while gui.Parent do
+        task.wait(0.5)
+
+        -- Refresh the selected target while the toggle is enabled
+        if states["HEAD TARGET"] then
+            if not targetHead or not targetHead.Parent
+                or not targetHead:IsDescendantOf(workspace) then
+
+                targetHead = getNearestOpponentHead()
+
+                if targetHead then
+                    updateButton(
+                        "HEAD TARGET",
+                        "TARGET: " .. targetHead.Parent.Name
+                    )
+                else
+                    updateButton("HEAD TARGET", "HEAD TARGET: NO PLAYER")
+                end
+            end
+        end
+
+        refreshVisuals()
+    end
+end)
