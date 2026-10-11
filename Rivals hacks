@@ -11,32 +11,44 @@ local playerGui = player:WaitForChild("PlayerGui")
 local TARGET_RANGE = 250
 local targetHead = nil
 
--- Remove an older copy if the script runs again
+-- Remove duplicate GUI
 local oldGui = playerGui:FindFirstChild("NickoyCombinedMenu")
 if oldGui then
     oldGui:Destroy()
 end
 
+-- Main GUI
 local gui = Instance.new("ScreenGui")
 gui.Name = "NickoyCombinedMenu"
 gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 100
+gui.Enabled = true
 gui.Parent = playerGui
 
+-- Open button
 local openButton = Instance.new("TextButton")
-openButton.Size = UDim2.fromOffset(130, 35)
-openButton.Position = UDim2.new(0, 15, 0.5, -20)
+openButton.Name = "OpenButton"
+openButton.Size = UDim2.fromOffset(130, 36)
+openButton.Position = UDim2.new(0, 15, 0.5, -18)
 openButton.Text = "OPEN MENU"
+openButton.TextColor3 = Color3.new(1, 1, 1)
+openButton.BackgroundColor3 = Color3.fromRGB(40, 90, 150)
+openButton.BorderSizePixel = 0
+openButton.Visible = false
 openButton.Parent = gui
 
+-- Main panel (visible immediately)
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
-frame.Size = UDim2.fromOffset(240, 275)
-frame.Position = UDim2.new(0, 15, 0.5, 20)
+frame.Size = UDim2.fromOffset(250, 290)
+frame.Position = UDim2.new(0, 15, 0.5, -145)
 frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 frame.BorderSizePixel = 0
-frame.Visible = false
+frame.Visible = true
 frame.Parent = gui
 
+-- Title bar
 local title = Instance.new("TextButton")
 title.Name = "TitleBar"
 title.Size = UDim2.new(1, -35, 0, 30)
@@ -44,14 +56,16 @@ title.Text = "[made by Nickoy] — DRAG HERE"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 title.BorderSizePixel = 0
+title.Active = true
 title.Parent = frame
 
+-- Close button
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.fromOffset(35, 30)
 closeButton.Position = UDim2.new(1, -35, 0, 0)
 closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(150, 45, 45)
 closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.BackgroundColor3 = Color3.fromRGB(150, 45, 45)
 closeButton.BorderSizePixel = 0
 closeButton.Parent = frame
 
@@ -65,13 +79,11 @@ closeButton.MouseButton1Click:Connect(function()
     openButton.Visible = true
 end)
 
--- Draggable title bar: mouse and touch
+-- Drag support: mouse and touch
 local dragging = false
 local dragStart
 local startPosition
 local activeTouch
-
-title.Active = true
 
 title.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -92,14 +104,14 @@ UIS.InputChanged:Connect(function(input)
         return
     end
 
-    local isMouse =
+    local mouseMove =
         input.UserInputType == Enum.UserInputType.MouseMovement
 
-    local isTouch =
+    local touchMove =
         input.UserInputType == Enum.UserInputType.Touch
         and input == activeTouch
 
-    if isMouse or isTouch then
+    if mouseMove or touchMove then
         local delta = input.Position - dragStart
 
         frame.Position = UDim2.new(
@@ -122,16 +134,6 @@ UIS.InputEnded:Connect(function(input)
 end)
 
 -- Feature states
-local states = {
-    ESP = false,
-    CHAMS = false,
-    NAMES = false,
-    ["HEAD TARGET"] = false,
-    ["AUTO SHOOT"] = false,
-}
-
-local buttons = {}
-
 local features = {
     "ESP",
     "CHAMS",
@@ -140,22 +142,28 @@ local features = {
     "AUTO SHOOT",
 }
 
+local states = {}
+local buttons = {}
+
+for _, feature in ipairs(features) do
+    states[feature] = false
+end
+
 local function updateButton(feature, customText)
     local button = buttons[feature]
     if not button then
         return
     end
 
-    button.Text = customText or (
-        feature .. ": " .. (states[feature] and "ON" or "OFF")
-    )
+    button.Text = customText
+        or (feature .. ": " .. (states[feature] and "ON" or "OFF"))
 
     button.BackgroundColor3 = states[feature]
         and Color3.fromRGB(45, 115, 75)
         or Color3.fromRGB(55, 55, 55)
 end
 
--- Find the nearest eligible living player's head
+-- Nearest living player's head, within range
 local function getNearestOpponentHead()
     local character = player.Character
     local root = character
@@ -165,20 +173,18 @@ local function getNearestOpponentHead()
         return nil
     end
 
-    local nearestHead = nil
+    local nearestHead
     local nearestDistance = TARGET_RANGE
 
     for _, opponent in ipairs(Players:GetPlayers()) do
         if opponent ~= player then
-            local opponentCharacter = opponent.Character
-            local humanoid = opponentCharacter
-                and opponentCharacter:FindFirstChildOfClass("Humanoid")
-            local head = opponentCharacter
-                and opponentCharacter:FindFirstChild("Head")
-            local opponentRoot = opponentCharacter
-                and opponentCharacter:FindFirstChild("HumanoidRootPart")
+            local model = opponent.Character
+            local humanoid = model
+                and model:FindFirstChildOfClass("Humanoid")
+            local head = model and model:FindFirstChild("Head")
+            local opponentRoot =
+                model and model:FindFirstChild("HumanoidRootPart")
 
-            -- Add your own game's team/match eligibility checks here.
             if humanoid and humanoid.Health > 0
                 and head and opponentRoot then
 
@@ -200,8 +206,8 @@ end
 for i, feature in ipairs(features) do
     local button = Instance.new("TextButton")
     button.Name = feature:gsub(" ", "") .. "Button"
-    button.Size = UDim2.new(1, -20, 0, 38)
-    button.Position = UDim2.new(0, 10, 0, 35 + (i - 1) * 45)
+    button.Size = UDim2.new(1, -20, 0, 40)
+    button.Position = UDim2.new(0, 10, 0, 38 + (i - 1) * 47)
     button.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
     button.TextColor3 = Color3.new(1, 1, 1)
     button.BorderSizePixel = 0
@@ -235,18 +241,27 @@ for i, feature in ipairs(features) do
     end)
 end
 
--- Clear the selected head if it disappears or the player leaves
-Players.PlayerRemoving:Connect(function(leavingPlayer)
-    if targetHead and targetHead:IsDescendantOf(
-        leavingPlayer.Character or Instance.new("Folder")
-    ) then
+-- Clear selected target if it is removed
+local function clearTargetIfInvalid()
+    if targetHead and not targetHead:IsDescendantOf(workspace) then
         targetHead = nil
-        states["HEAD TARGET"] = false
-        updateButton("HEAD TARGET", "HEAD TARGET: OFF")
     end
-end)
 
--- ESP / CHAMS / NAMES visual updates
+    if states["HEAD TARGET"] and not targetHead then
+        targetHead = getNearestOpponentHead()
+
+        if targetHead then
+            updateButton(
+                "HEAD TARGET",
+                "TARGET: " .. targetHead.Parent.Name
+            )
+        else
+            updateButton("HEAD TARGET", "HEAD TARGET: NO PLAYER")
+        end
+    end
+end
+
+-- Visual labels and highlights for your own Studio experience
 local function refreshVisuals()
     for _, targetPlayer in ipairs(Players:GetPlayers()) do
         if targetPlayer ~= player then
@@ -308,28 +323,13 @@ local function refreshVisuals()
     end
 end
 
+-- Main refresh loop
 task.spawn(function()
     while gui.Parent do
         task.wait(0.5)
-
-        -- Refresh the selected target while the toggle is enabled
-        if states["HEAD TARGET"] then
-            if not targetHead or not targetHead.Parent
-                or not targetHead:IsDescendantOf(workspace) then
-
-                targetHead = getNearestOpponentHead()
-
-                if targetHead then
-                    updateButton(
-                        "HEAD TARGET",
-                        "TARGET: " .. targetHead.Parent.Name
-                    )
-                else
-                    updateButton("HEAD TARGET", "HEAD TARGET: NO PLAYER")
-                end
-            end
-        end
-
+        clearTargetIfInvalid()
         refreshVisuals()
     end
 end)
+
+print("[made by Nickoy] Combined Menu loaded")
