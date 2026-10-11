@@ -1,17 +1,20 @@
 
 -- [made by Nickoy]
--- Combined Menu + Target Selection
+-- Combined Menu + Target Selection + Training Aimassit
 -- LocalScript: StarterPlayer > StarterPlayerScripts
 -- For your own Roblox Studio experience
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local TARGET_RANGE = 250
 local targetHead = nil
+local aimassitEnabled = false
+local AIM_STEP = "NickoyTrainingAimassit"
 
 local features = {
     "ESP",
@@ -19,6 +22,7 @@ local features = {
     "NAMES",
     "HEAD TARGET",
     "AUTO SHOOT",
+    "Aimassit",
 }
 
 local states = {}
@@ -54,11 +58,11 @@ openButton.BorderSizePixel = 0
 openButton.Visible = false
 openButton.Parent = gui
 
--- Main panel
+-- Main panel (height increased for six buttons)
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
-frame.Size = UDim2.fromOffset(250, 290)
-frame.Position = UDim2.new(0, 15, 0.5, -145)
+frame.Size = UDim2.fromOffset(250, 335)
+frame.Position = UDim2.new(0, 15, 0.5, -167)
 frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 frame.BorderSizePixel = 0
 frame.Parent = gui
@@ -84,12 +88,12 @@ closeButton.BackgroundColor3 = Color3.fromRGB(150, 45, 45)
 closeButton.BorderSizePixel = 0
 closeButton.Parent = frame
 
-openButton.MouseButton1Click:Connect(function()
+openButton.Activated:Connect(function()
     frame.Visible = true
     openButton.Visible = false
 end)
 
-closeButton.MouseButton1Click:Connect(function()
+closeButton.Activated:Connect(function()
     frame.Visible = false
     openButton.Visible = true
 end)
@@ -216,7 +220,66 @@ for i, feature in ipairs(features) do
 
     buttons[feature] = button
 
-    button.MouseButton1Click:Connect(function()
+    button.Activated:Connect(function()
+        -- Aimassit has its own training-NPC toggle below.
+        if feature == "Aimassit" then
+            aimassitEnabled = not aimassitEnabled
+            states["Aimassit"] = aimassitEnabled
+
+            if aimassitEnabled then
+                RunService:UnbindFromRenderStep(AIM_STEP)
+
+                RunService:BindToRenderStep(
+                    AIM_STEP,
+                    Enum.RenderPriority.Camera.Value + 1,
+                    function()
+                        if not aimassitEnabled then
+                            return
+                        end
+
+                        local camera = workspace.CurrentCamera
+                        local npc = workspace:FindFirstChild("TrainingNPC")
+                        local head = npc and npc:FindFirstChild("Head")
+                        local humanoid =
+                            npc and npc:FindFirstChildOfClass("Humanoid")
+
+                        if not camera or not head or not humanoid
+                            or humanoid.Health <= 0 then
+                            return
+                        end
+
+                        local point, visible =
+                            camera:WorldToViewportPoint(head.Position)
+
+                        if not visible or point.Z <= 0 then
+                            return
+                        end
+
+                        local center = camera.ViewportSize / 2
+                        local distance = (
+                            Vector2.new(point.X, point.Y) - center
+                        ).Magnitude
+
+                        if distance <= 140 then
+                            local goal = CFrame.lookAt(
+                                camera.CFrame.Position,
+                                head.Position
+                            )
+
+                            camera.CFrame = camera.CFrame:Lerp(goal, 0.12)
+                        end
+                    end
+                )
+            else
+                RunService:UnbindFromRenderStep(AIM_STEP)
+            end
+
+            updateButton("Aimassit")
+            print("[made by Nickoy] Aimassit:",
+                aimassitEnabled and "ON" or "OFF")
+            return
+        end
+
         states[feature] = not states[feature]
 
         if feature == "HEAD TARGET" then
@@ -335,7 +398,10 @@ task.spawn(function()
 end)
 
 -- Cleanup
-script.Destroying:Connect(function()
+local function cleanup()
+    aimassitEnabled = false
+    RunService:UnbindFromRenderStep(AIM_STEP)
+
     for _, targetPlayer in ipairs(Players:GetPlayers()) do
         local character = targetPlayer.Character
 
@@ -352,6 +418,9 @@ script.Destroying:Connect(function()
             end
         end
     end
-end)
+end
+
+script.Destroying:Connect(cleanup)
+gui.Destroying:Connect(cleanup)
 
 print("[made by Nickoy] Combined Menu loaded")
