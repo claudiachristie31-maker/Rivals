@@ -1,9 +1,12 @@
 
 -- [made by Nickoy]
--- Combined Player Menu
+-- Combined Menu + Draggable Title Bar
 -- LocalScript: StarterPlayer > StarterPlayerScripts
 
 local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -12,11 +15,11 @@ gui.Name = "NickoyCombinedMenu"
 gui.ResetOnSpawn = false
 gui.Parent = playerGui
 
-local open = Instance.new("TextButton")
-open.Size = UDim2.fromOffset(130, 35)
-open.Position = UDim2.new(0, 15, 0.5, -20)
-open.Text = "OPEN MENU"
-open.Parent = gui
+local openButton = Instance.new("TextButton")
+openButton.Size = UDim2.fromOffset(130, 35)
+openButton.Position = UDim2.new(0, 15, 0.5, -20)
+openButton.Text = "OPEN MENU"
+openButton.Parent = gui
 
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
@@ -26,29 +29,79 @@ frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 frame.Visible = false
 frame.Parent = gui
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -40, 0, 30)
-title.Text = "[made by Nickoy]"
+local title = Instance.new("TextButton")
+title.Name = "TitleBar"
+title.Size = UDim2.new(1, -35, 0, 30)
+title.Text = "[made by Nickoy] — DRAG HERE"
 title.TextColor3 = Color3.new(1, 1, 1)
-title.BackgroundTransparency = 1
+title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 title.Parent = frame
 
-local close = Instance.new("TextButton")
-close.Size = UDim2.fromOffset(35, 30)
-close.Position = UDim2.new(1, -35, 0, 0)
-close.Text = "X"
-close.Parent = frame
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.fromOffset(35, 30)
+closeButton.Position = UDim2.new(1, -35, 0, 0)
+closeButton.Text = "X"
+closeButton.Parent = frame
 
-open.MouseButton1Click:Connect(function()
+openButton.MouseButton1Click:Connect(function()
     frame.Visible = true
-    open.Visible = false
+    openButton.Visible = false
 end)
 
-close.MouseButton1Click:Connect(function()
+closeButton.MouseButton1Click:Connect(function()
     frame.Visible = false
-    open.Visible = true
+    openButton.Visible = true
 end)
 
+-- Drag support: mouse and touchscreen
+local dragging = false
+local dragStart
+local startPosition
+local dragInput
+
+title.Active = true
+
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragging = true
+        dragStart = input.Position
+        startPosition = frame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+title.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and (
+        input == dragInput
+        or input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+        local delta = input.Position - dragStart
+
+        frame.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- Feature buttons
 local states = {
     ESP = false,
     CHAMS = false,
@@ -58,9 +111,15 @@ local states = {
 }
 
 local buttons = {}
-local order = {"ESP", "CHAMS", "NAMES", "HEAD TARGET", "AUTO SHOOT"}
+local features = {
+    "ESP",
+    "CHAMS",
+    "NAMES",
+    "HEAD TARGET",
+    "AUTO SHOOT",
+}
 
-for i, feature in ipairs(order) do
+for i, feature in ipairs(features) do
     local button = Instance.new("TextButton")
     button.Name = feature:gsub(" ", "") .. "Button"
     button.Size = UDim2.new(1, -20, 0, 38)
@@ -76,13 +135,19 @@ for i, feature in ipairs(order) do
     end)
 end
 
--- NPC-only nearest target selection for your own game.
+-- Nearest NPC for your own game's auto-shoot system
+local GUN_NAME = "Gun"
+local RANGE = 100
+local FIRE_INTERVAL = 0.2
+local elapsed = 0
+
 local function getNearestNPC(maxDistance)
     local character = player.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
     if not root then return nil end
 
-    local nearest, nearestDistance = nil, maxDistance or 100
+    local nearest
+    local nearestDistance = maxDistance
 
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model")
@@ -105,12 +170,7 @@ local function getNearestNPC(maxDistance)
     return nearest
 end
 
--- Auto-shoot toggle: activates your equipped Tool near an NPC.
-local GUN_NAME = "Gun"
-local FIRE_INTERVAL = 0.2
-local elapsed = 0
-
-game:GetService("RunService").Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function(dt)
     if not states["AUTO SHOOT"] then return end
 
     elapsed += dt
@@ -118,18 +178,14 @@ game:GetService("RunService").Heartbeat:Connect(function(dt)
     elapsed = 0
 
     local character = player.Character
-    if not character then return end
+    local gun = character and character:FindFirstChild(GUN_NAME)
 
-    local gun = character:FindFirstChild(GUN_NAME)
-    if not gun or not gun:IsA("Tool") then return end
-
-    local target = getNearestNPC(100)
-    if target then
+    if gun and gun:IsA("Tool") and getNearestNPC(RANGE) then
         gun:Activate()
     end
 end)
 
--- Nearest player head selection.
+-- Nearest head selection
 local selectedHead
 
 buttons["HEAD TARGET"].MouseButton1Click:Connect(function()
@@ -154,6 +210,7 @@ buttons["HEAD TARGET"].MouseButton1Click:Connect(function()
 
             if head and humanoid and humanoid.Health > 0 then
                 local distance = (head.Position - root.Position).Magnitude
+
                 if distance < nearestDistance then
                     nearestDistance = distance
                     selectedHead = head
@@ -163,11 +220,11 @@ buttons["HEAD TARGET"].MouseButton1Click:Connect(function()
     end
 
     buttons["HEAD TARGET"].Text = selectedHead
-        and ("HEAD TARGET: " .. selectedHead.Parent.Name)
+        and ("TARGET: " .. selectedHead.Parent.Name)
         or "HEAD TARGET: NONE"
 end)
 
--- Apply visual effects to other player characters in your own game.
+-- Visual effects for your own game
 local function refreshVisuals()
     for _, targetPlayer in ipairs(Players:GetPlayers()) do
         if targetPlayer ~= player then
